@@ -29,6 +29,45 @@ More documentation coming soon. For now, please review
 [CarND-MPC-Clojure](https://github.com/ericlavigne/CarND-MPC-Clojure)
 for an example of driving a car in a simulator.
 
+## Roadmap
+
+- Documentation
+  - Simple example code for README
+  - Explain policy, predict, and value functions
+  - Explain state and actuation
+  - Move functions for internal use only to separate namespace
+- API Changes
+  - Support randomness in environment (random policy)
+  - Support adversarial behavior (maximize vs minimize policy)
+  - Refine previous solution with new starting state
+- Speed Optimization (See References to learn about progressive widening, UCT, and KR-UCT.)
+  - Focus exploration on most promising paths (UCT)
+  - Balance between adding new nodes and refining old nodes (progressive widening)
+  - Interpolate policy and value between nodes (KR-UCT)
+  - Re-use nodes to share data between branches (new idea)
+  - Multi-threading
+
+## References
+
+[Monte Carlo Tree Search – beginners guide](https://int8.io/monte-carlo-tree-search-beginners-guide/)
+
+This guide explains Monte Carlo tree search, the basis for Figurer's algorithm. Note that
+the original Monte Carlo tree search, as described in this guide, only works for discrete
+problems. Understanding the original algorithm is still helpful as background before
+learning about extensions, such as progressive widening, to handle continuous problems.
+
+[Monte Carlo Tree Search in Continuous Action Spaces with Execution Uncertainty](https://github.com/ericlavigne/figurer/raw/master/doc/ijcai-16-104.pdf)
+
+This paper describes progressive widening as a continuous extension of Monte Carlo tree
+search, as well as KR-UCT as a way of optimizing for speed. This paperis very helpful for
+understanding how Figurer works, including upcoming speed optimizations.
+
+[A0C: Alpha Zero in Continuous Action Space](https://github.com/ericlavigne/figurer/raw/master/doc/arxiv-1805-09613.pdf)
+
+Deep reinforcement learning combines a planner like Figurer with neural network-based
+policy and value functions. This paper discusses such applications and is relevant to
+anyone who wants to use Figurer for deep reinforcement learning.
+
 ## License
 
 Copyright © 2018 Eric Lavigne
