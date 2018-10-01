@@ -1,4 +1,4 @@
-![Figurer: Sometimes you need a little help with your figuring](https://github.com/ericlavigne/figurer/raw/master/images/figurer.png)
+![Figurer: Sometimes you need a little help with your figuring](https://github.com/ericlavigne/figurer/raw/master/doc/images/figurer.png)
 
 Figurer helps with messy, real world, planning problems. It can help
 you drive a car or fly a quadcopter by choosing the best sequence
@@ -56,13 +56,13 @@ the original Monte Carlo tree search, as described in this guide, only works for
 problems. Understanding the original algorithm is still helpful as background before
 learning about extensions, such as progressive widening, to handle continuous problems.
 
-[Monte Carlo Tree Search in Continuous Action Spaces with Execution Uncertainty](https://github.com/ericlavigne/figurer/raw/master/doc/ijcai-16-104.pdf)
+[Monte Carlo Tree Search in Continuous Action Spaces with Execution Uncertainty](https://github.com/ericlavigne/figurer/blob/master/doc/ijcai-16-104.pdf)
 
 This paper describes progressive widening as a continuous extension of Monte Carlo tree
 search, as well as KR-UCT as a way of optimizing for speed. This paperis very helpful for
 understanding how Figurer works, including upcoming speed optimizations.
 
-[A0C: Alpha Zero in Continuous Action Space](https://github.com/ericlavigne/figurer/raw/master/doc/arxiv-1805-09613.pdf)
+[A0C: Alpha Zero in Continuous Action Space](https://github.com/ericlavigne/figurer/blob/master/doc/arxiv-1805-09613.pdf)
 
 Deep reinforcement learning combines a planner like Figurer with neural network-based
 policy and value functions. This paper discusses such applications and is relevant to
