@@ -193,17 +193,9 @@
 
 (defn expected-value
   "Estimates the average value that would be
-   found by sampling many plans from this
-   initial state.
-  
-   TODO: When state provided, need to search for
-         nearby nodes and interpolate."
-  ([context] (:value ((:node-id-to-node context) (:initial-node-id context))))
-  ([context state]
-   (let [plan (sample-plan context state)
-         states (:states plan)
-         total-value (reduce + (map (:value context) states))
-         num-states (count states)
-         average-value (/ total-value num-states)]
-     average-value)))
+   found by sampling many plans from the
+   initial state."
+  [context]
+  (:value ((:node-id-to-node context)
+           (:initial-node-id context))))
 

@@ -1,4 +1,4 @@
-(defproject figurer "0.1.0"
+(defproject figurer "0.1.1"
   :description "Planner for continuous state spaces"
   :url "https://github.com/ericlavigne/figurer"
   :license {:name "Eclipse Public License"
