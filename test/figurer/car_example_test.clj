@@ -1,46 +1,25 @@
 (ns figurer.car-example-test
   (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
             [figurer.car-example :refer :all]
             [figurer.core :as figurer]
+            [figurer.test-util :refer :all]
             same))
 
-; Found min and max value by running 10 times.
-; Then enforce range twice as large to avoid false positives.
-; (map #(figurer/expected-value (figurer/figure sharp-turn-problem {:max-seconds %}))
-;   (repeat 10 10.0))
+"""
+  (require '[figurer.test-util :refer [baseline]])
+  (require '[figurer.car-example :as car])
+  (baseline car/gentle-turn-problem 0.1)
+"""
 
 (deftest gentle-turn-test
-  (doseq [[seconds min-value max-value] [[0.1 403 489]
-                                         [1.0 482 557]
-                                         [10.0 557 625]]]
-    (let [delta (- max-value min-value)
-          min-value (- min-value (/ delta 2.0))
-          max-value (+ max-value (/ delta 2.0))
-          result (figurer/expected-value
-                   (figurer/figure gentle-turn-problem
-                     {:max-seconds seconds}))]
-      (testing (str "Below expectations on gentle turn with "
-                 seconds " seconds")
-        (is (> result min-value)))
-      (testing (str "Surpass expectations on gentle turn with "
-                 seconds " seconds")
-        (is (< result max-value))))))
+  (compare-with-baseline "gentle turn" gentle-turn-problem
+    [[ 0.1  71.7  73.6  68.6  71.9]
+     [ 1.0  73.0  74.1  68.9  72.9]
+     [10.0  73.8  74.7  67.2  73.1]]))
 
 (deftest sharp-turn-test
-  (doseq [[seconds min-value max-value] [[0.1 -404 -272]
-                                         [1.0 -303 -268]
-                                         [10.0 -280 -266]]]
-    (let [delta (- max-value min-value)
-          min-value (- min-value (/ delta 2.0))
-          max-value (+ max-value (/ delta 2.0))
-          result (figurer/expected-value
-                   (figurer/figure sharp-turn-problem
-                     {:max-seconds seconds}))]
-      (testing (str "Below expectations on sharp turn with "
-                 seconds " seconds")
-        (is (> result min-value)))
-      (testing (str "Surpass expectations on sharp turn with "
-                 seconds " seconds")
-        (is (< result max-value))))))
+  (compare-with-baseline "sharp turn" sharp-turn-problem
+    [[0.1  -418.0  -319.5  -562.6  -391.7]
+     [1.0  -319.7  -315.8  -587.9  -397.5]
+     [10   -316.9  -313.9  -488.1  -389.8]]))
 

@@ -121,7 +121,10 @@
                           children (map (:node-id-to-node context)
                                      (keys (:next-nodes node)))
                           max-child-value (apply max (map :value children))
-                          new-value (+ (:direct-value node) max-child-value)
+                          depth-after-node (- (:depth context) (count node-ids-to-update))
+                          new-value (/ (+ (:direct-value node)
+                                          (* max-child-value depth-after-node))
+                                       (inc depth-after-node))
                           new-node (merge node
                                      {:value new-value
                                       :visits (inc (:visits node))})]
