@@ -3,16 +3,41 @@
    Functions in this namespace may be changed or removed without notice."
   (:require [incanter.distributions :refer [draw]]))
 
+(defn sum [values]
+  (apply + values))
+
+(defn stdev [values]
+  (if (< (count values) 2)
+    0.0
+    (let [total (sum values)
+          mean (/ total (count values))
+          square-diffs (map #(Math/pow (- mean %) 2) values)]
+      (Math/sqrt (/ (sum square-diffs)
+                    (dec (count values)))))))
+
 (defn figure-next-node
   "Private: Choose next node (or return nil to create new node).
   
    TODO: Choose promising node (or nil if winner so far is clear)
          rather than just choosing randomly."
   [context node-id]
-  (draw (conj (keys
-                (:next-nodes (get (:node-id-to-node context)
-                                  node-id)))
-          nil)))
+  (let [current-node (get (:node-id-to-node context) node-id)
+        next-node-ids (keys (:next-nodes current-node))
+        total-visits (:visits current-node)
+        values (map #(get-in context [:node-id-to-node % :value]) next-node-ids)
+        value-stdev (stdev values)]
+    (if (= 0 (rand-int (inc (count next-node-ids)))) ;(>= (Math/sqrt (* total-visits)) (count next-node-ids))
+      nil
+      (apply max-key
+        (fn [node-id]
+          (let [node (get-in context [:node-id-to-node node-id])
+                visits (:visits node)
+                value (:value node)]
+            (+ value
+               (* value-stdev
+                  (Math/sqrt (/ total-visits
+                                (+ 1.0 visits)))))))
+        next-node-ids))))
 
 (defn figure-rollout
   "Private: Reached end of nodes - follow random policy to determine end result.
