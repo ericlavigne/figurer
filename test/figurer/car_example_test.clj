@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [figurer.car-example :refer :all]
             [figurer.core :as figurer]
-            [figurer.test-util :refer :all]
             [metric-test.core :refer [metric-test]]
             same))
 
@@ -15,23 +14,43 @@
                                      (count (:states plan)))]
                    plan-value))})
 
-(deftest gentle-turn-metric-test
+(deftest gentle-turn-test
   (metric-test "gentle turn metric 0.1"
     #(figurer/figure gentle-turn-problem {:max-seconds 0.1})
     :metrics metrics
-    :baseline {:expected-value {:mean 72.508, :stdev 0.542}
-               :plan-value {:mean 70.569, :stdev 1.46}}))
-
-(deftest gentle-turn-test
-  (compare-with-baseline "gentle turn" gentle-turn-problem
-    [[ 0.1  71.7  73.6  68.6  71.9]
-     [ 1.0  73.0  74.1  68.9  72.9]
-     [10.0  73.8  74.7  67.2  73.1]]))
+    :baseline
+    {:expected-value {:mean 72.508, :stdev 0.542}
+     :plan-value {:mean 70.569, :stdev 1.46}})
+  (metric-test "gentle turn metric 1.0"
+    #(figurer/figure gentle-turn-problem {:max-seconds 1.0})
+    :metrics metrics
+    :baseline
+    {:expected-value {:mean 73.553, :stdev 0.372},
+     :plan-value {:mean 70.908, :stdev 2.047}})
+  (metric-test "gentle turn metric 10.0"
+    #(figurer/figure gentle-turn-problem {:max-seconds 10.0})
+    :metrics metrics
+    :baseline
+    {:expected-value {:mean 73.987, :stdev 0.179},
+     :plan-value {:mean 70.722, :stdev 2.352}}))
 
 (deftest sharp-turn-test
-  (compare-with-baseline "sharp turn" sharp-turn-problem
-    [[0.1  -418.0  -319.5  -562.6  -391.7]
-     [1.0  -319.7  -315.8  -587.9  -397.5]
-     [10   -316.9  -313.9  -488.1  -389.8]]))
-
+  (metric-test "sharp turn metric 0.1"
+    #(figurer/figure sharp-turn-problem {:max-seconds 0.1})
+    :metrics metrics
+    :baseline
+    {:expected-value {:mean -339.05, :stdev 40.729},
+     :plan-value {:mean -428.533, :stdev 49.654}})
+  (metric-test "sharp turn metric 1.0"
+    #(figurer/figure sharp-turn-problem {:max-seconds 1.0})
+    :metrics metrics
+    :baseline
+    {:expected-value {:mean -317.563, :stdev 0.909},
+     :plan-value {:mean -468.805, :stdev 61.19}})
+  (metric-test "sharp turn metric 10.0"
+    #(figurer/figure sharp-turn-problem {:max-seconds 10.0})
+    :metrics metrics
+    :baseline
+    {:expected-value {:mean -315.746, :stdev 0.397},
+     :plan-value {:mean -477.677, :stdev 56.299}}))
 
