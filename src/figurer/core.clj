@@ -1,5 +1,6 @@
 (ns figurer.core
-  (:require [figurer.internal :refer :all]
+  (:require [clojure.data.priority-map :refer [priority-map]]
+            [figurer.internal :refer :all]
             [incanter.distributions :refer [draw]]))
 
 (defn define-problem
@@ -28,7 +29,8 @@
                       :visits 0
                       :direct-value direct-value
                       :value direct-value
-                      :next-nodes {}}]
+                      :next-nodes {}
+                      :exploration-priority (priority-map)}]
     (merge options
       {:nodes-so-far 1
        :initial-node-id initial-node-id

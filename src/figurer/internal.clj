@@ -1,18 +1,22 @@
 (ns figurer.internal
   "Internal functions that should not be called from outside the figurer library.
    Functions in this namespace may be changed or removed without notice."
-  (:require [incanter.distributions :refer [draw]]))
+  (:require [clojure.data.priority-map :refer [priority-map]]
+            [incanter.distributions :refer [draw]]))
 
 (defn figure-next-node
   "Private: Choose next node (or return nil to create new node).
   
    TODO: Choose promising node (or nil if winner so far is clear)
-         rather than just choosing randomly."
+         rather than just spreading visits equally."
   [context node-id]
-  (draw (conj (keys
-                (:next-nodes (get (:node-id-to-node context)
-                                  node-id)))
-          nil)))
+  (let [node (get-in context [:node-id-to-node node-id])
+        pqueue (:exploration-priority node)
+        [lowest-visit-id visits] (peek pqueue)
+        count-next-nodes (count (:next-nodes node))]
+    (if (and lowest-visit-id (<= visits count-next-nodes))
+      lowest-visit-id
+      nil)))
 
 (defn figure-rollout
   "Private: Reached end of nodes - follow random policy to determine end result.
@@ -50,14 +54,18 @@
                   :visits 0
                   :direct-value direct-value
                   :value direct-value
-                  :next-nodes {}}
+                  :next-nodes {}
+                  :exploration-priority (priority-map)}
         new-context (assoc-in
                       (update context :nodes-so-far inc)
                       [:node-id-to-node node-id]
                       new-node)
         new-context (assoc-in new-context
                       [:node-id-to-node parent-node-id :next-nodes node-id]
-                      {:node-id node-id :actuation actuation})]
+                      {:node-id node-id :actuation actuation})
+        new-context (update-in new-context
+                               [:node-id-to-node parent-node-id :exploration-priority]
+                               conj [node-id 0])]
     [new-context node-id]))
 
 (defn figure-once
@@ -89,16 +97,22 @@
                     (let [node-id (first node-ids-to-update)
                           node (get (:node-id-to-node context) node-id)
                           children (map (:node-id-to-node context)
-                                     (keys (:next-nodes node)))
+                                        (keys (:next-nodes node)))
                           max-child-value (apply max (map :value children))
                           depth-after-node (- (:depth context) (count node-ids-to-update))
                           new-value (/ (+ (:direct-value node)
                                           (* max-child-value depth-after-node))
                                        (inc depth-after-node))
                           new-node (merge node
-                                     {:value new-value
-                                      :visits (inc (:visits node))})]
+                                          {:value new-value
+                                           :visits (inc (:visits node))})
+                          context (assoc-in context [:node-id-to-node node-id] new-node)
+                          parent-id (second node-ids-to-update)
+                          context (if (not parent-id)
+                                    context
+                                    (update-in context [:node-id-to-node parent-id :exploration-priority]
+                                               conj [node-id (:visits new-node)]))]
                       (recur (rest node-ids-to-update)
-                        (assoc-in context [:node-id-to-node node-id] new-node)))))]
+                             context))))]
     context))
 
