@@ -15,19 +15,12 @@ Figurer was designed for use with self-driving cars, yet is applicable
 to any planning problem for which the physics and desired outcome are
 well understood.
 
-## Installation
+## Installation and Usage
 
-[![Clojars Project](https://img.shields.io/clojars/v/figurer.svg)](https://clojars.org/figurer)
+See language-specific README files for instructions on installation and usage.
 
-Add the following dependency to your `project.clj` file:
-
-    [figurer "0.1.0"]
-
-## Usage
-
-More documentation coming soon. For now, please review
-[CarND-MPC-Clojure](https://github.com/ericlavigne/CarND-MPC-Clojure)
-for an example of driving a car in a simulator.
+- [C++](https://github.com/ericlavigne/figurer/tree/master/cpp)
+- [Clojure](https://github.com/ericlavigne/figurer/tree/master/clojure)
 
 ## Roadmap
 
