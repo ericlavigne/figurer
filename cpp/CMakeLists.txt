@@ -7,7 +7,7 @@ set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS, "${CXX_FLAGS}")
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
-set(sources src/figurer.cpp src/figurer.hpp)
+set(sources src/figurer.cpp src/figurer.hpp src/figurer_distribution.cpp src/figurer_distribution.hpp)
 add_library(figurer ${sources})
 
 configure_file(CMakeLists-googletest.txt googletest-download/CMakeLists.txt)
