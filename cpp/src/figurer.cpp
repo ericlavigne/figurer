@@ -44,6 +44,7 @@ namespace figurer {
             figure_once();
             auto current_time = std::chrono::high_resolution_clock::now();
             if(current_time - start_time > duration) {
+                std::cout << std::endl;
                 return;
             }
         }
@@ -53,6 +54,7 @@ namespace figurer {
         for(int i=0; i<iterations; i++) {
             figure_once();
         }
+        std::cout << std::endl;
     }
 
     Plan Context::sample_plan() {
@@ -61,6 +63,7 @@ namespace figurer {
 
     Plan Context::sample_plan(int depth) {
         Plan plan;
+        plan.states.push_back(initial_state_);
         return plan;
     }
 
@@ -69,6 +72,6 @@ namespace figurer {
     }
 
     void Context::figure_once() {
-        std::cout << "Hello world!" << std::endl;
+        std::cout << ".";
     }
 }

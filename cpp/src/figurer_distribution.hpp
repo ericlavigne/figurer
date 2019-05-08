@@ -1,5 +1,5 @@
-#ifndef FIGURER_DISTRIBUTION_H
-#define FIGURER_DISTRIBUTION_H
+#ifndef FIGURER_DISTRIBUTION_HPP
+#define FIGURER_DISTRIBUTION_HPP
 
 #include <functional>
 #include <vector>
@@ -21,6 +21,7 @@ namespace figurer {
         double density(std::vector<double>);
     };
 
+    Distribution uniform_distribution(std::vector<double> bounds);
 }
 
 #endif

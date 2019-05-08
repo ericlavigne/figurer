@@ -1,5 +1,5 @@
-#ifndef FIGURER_H
-#define FIGURER_H
+#ifndef FIGURER_HPP
+#define FIGURER_HPP
 
 #include "figurer_distribution.hpp"
 #include <functional>
