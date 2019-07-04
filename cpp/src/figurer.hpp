@@ -32,12 +32,15 @@ namespace figurer {
         int visits;
         double direct_value;
         double value;
+        int depth;
         std::unordered_map<int,StateDistributionEdge> next_distribution_nodes;
     };
 
     struct DistributionNode {
         int node_id;
         Distribution next_state_distribution;
+        double value;
+        int depth;
         std::unordered_map<int,DistributionStateEdge> next_state_nodes;
     };
 
@@ -60,8 +63,11 @@ namespace figurer {
         // If state2 is not feasible or if the process is non-deterministic, then
         // actuation should be selected to come as close as possible.
         std::function<std::vector<double>(std::vector<double>,std::vector<double>)> predict_inverse_fn_;
+        void ensure_consistent_state();
         // figure_once takes a small step toward solving the optimization problem.
         void figure_once();
+        void refresh_state_node(int state_node_id);
+        void refresh_distribution_node(int distribution_node_id);
         std::unordered_map<int,StateNode> node_id_to_state_node_;
         int initial_state_node_id_;
         int max_state_node_id_;
@@ -83,10 +89,10 @@ namespace figurer {
         void figure_iterations(int iterations);
         Plan sample_plan();
         Plan sample_plan(int depth);
-
-        double apply_value_fn(std::vector<double> state);
     };
 
 }
+
+std::ostream& operator<<(std::ostream& os, const figurer::Plan& plan);
 
 #endif

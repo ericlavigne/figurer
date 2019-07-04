@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 project(figurer)
 
-add_definitions(-std=c++14)
-set(CMAKE_CXX_STANDARD 14)
+add_definitions(-std=c++17)
+set(CMAKE_CXX_STANDARD 17)
 set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS, "${CXX_FLAGS}")
 
@@ -29,6 +29,6 @@ endif()
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src ${CMAKE_BINARY_DIR}/googletest-build)
 
-set(test_sources test/figurer_test.cpp test/figurer_distribution_test.cpp test/figurer_robot2d_test.cpp)
+set(test_sources test/figurer_distribution_test.cpp test/figurer_robot2d_test.cpp)
 add_executable(test_figurer ${test_sources} ${sources})
 target_link_libraries(test_figurer gtest_main)

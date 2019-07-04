@@ -16,5 +16,6 @@ namespace {
         std::vector<double> goal = figurer_robot2d_example::goal;
         ASSERT_NEAR(last_state[0], goal[0], 1.0);
         ASSERT_NEAR(last_state[1], goal[1], 1.0);
+        std::cout << plan << std::endl;
     }
 }

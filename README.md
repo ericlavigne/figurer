@@ -63,7 +63,7 @@ anyone who wants to use Figurer for deep reinforcement learning.
 
 ## License
 
-Copyright © 2018 Eric Lavigne
+Copyright © 2018-2019 Eric Lavigne
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
