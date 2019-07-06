@@ -197,52 +197,65 @@ namespace figurer {
         }
     }
 
+    StateDistributionEdge Context::create_or_explore_from_state_node(int state_node_id) {
+        auto state_node = node_id_to_state_node_.find(state_node_id);
+        // Should decide to improve stats on old path or start new path. For now always start new path.
+        // Sample next actuation and resulting state distribution.
+        std::vector<double> actuation = state_node->second.next_actuation_distribution.sample();
+        Distribution next_state_distribution = this->predict_fn_(state_node->second.state, actuation);
+        // Create node and edge for new distribution node.
+        int next_distribution_node_id = ++this->max_distribution_node_id_;
+        StateDistributionEdge next_state_distribution_edge;
+        next_state_distribution_edge.state_node_id = state_node_id;
+        next_state_distribution_edge.distribution_node_id = next_distribution_node_id;
+        next_state_distribution_edge.actuation = actuation;
+        DistributionNode next_distribution_node;
+        next_distribution_node.node_id = next_distribution_node_id;
+        next_distribution_node.next_state_distribution = next_state_distribution;
+        next_distribution_node.value = state_node->second.value;
+        next_distribution_node.depth = 0;
+        node_id_to_distribution_node_.emplace(next_distribution_node_id, next_distribution_node);
+        state_node->second.next_distribution_nodes.emplace(next_distribution_node.node_id,
+                                                                   next_state_distribution_edge);
+        return next_state_distribution_edge;
+    }
+
+    DistributionStateEdge Context::create_or_explore_from_distribution_node(int distribution_node_id) {
+        // Sample state distribution to determine next state, then create next state node.
+        auto distribution_node = node_id_to_distribution_node_.find(distribution_node_id);
+        std::vector<double> state = distribution_node->second.next_state_distribution.sample();
+        DistributionStateEdge distribution_state_edge;
+        distribution_state_edge.distribution_node_id = distribution_node_id;
+        int state_node_id = ++this->max_state_node_id_;
+        distribution_state_edge.state_node_id = state_node_id;
+        distribution_state_edge.density = distribution_node->second.next_state_distribution.density(state);
+        StateNode state_node;
+        state_node.node_id = state_node_id;
+        state_node.state = state;
+        state_node.next_actuation_distribution = this->policy_fn_(state);
+        state_node.direct_value = this->value_fn_(state);
+        state_node.value = state_node.direct_value;
+        state_node.visits = 0;
+        state_node.depth = 0;
+        node_id_to_state_node_.emplace(state_node_id, state_node);
+        distribution_node->second.next_state_nodes.emplace(state_node_id, distribution_state_edge);
+        return distribution_state_edge;
+    }
+
     void Context::figure_once() {
         int current_state_node_id = initial_state_node_id_;
         std::vector<int> visited_state_nodes {current_state_node_id};
         std::vector<int> visited_distribution_nodes;
         for(int depth = 0; depth < this->depth_; depth++) {
-            auto current_state_node = node_id_to_state_node_.find(current_state_node_id);
-            // Should decide to improve stats on old path or start new path. For now always start new path.
-            // Sample next actuation and resulting state distribution.
-            std::vector<double> next_actuation = current_state_node->second.next_actuation_distribution.sample();
-            Distribution next_state_distribution = this->predict_fn_(current_state_node->second.state, next_actuation);
-            // Create node and edge for new distribution node.
-            int next_distribution_node_id = ++this->max_distribution_node_id_;
-            StateDistributionEdge next_state_distribution_edge;
-            next_state_distribution_edge.state_node_id = current_state_node_id;
-            next_state_distribution_edge.distribution_node_id = next_distribution_node_id;
-            next_state_distribution_edge.actuation = next_actuation;
-            DistributionNode next_distribution_node;
-            next_distribution_node.node_id = next_distribution_node_id;
-            next_distribution_node.next_state_distribution = next_state_distribution;
-            next_distribution_node.value = current_state_node->second.value;
-            next_distribution_node.depth = 0;
-            node_id_to_distribution_node_.emplace(next_distribution_node_id, next_distribution_node);
-            current_state_node->second.next_distribution_nodes.emplace(next_distribution_node.node_id,
-                                                                       next_state_distribution_edge);
-            // Sample state distribution to determine next state, then create next state node.
-            auto current_distribution_node = node_id_to_distribution_node_.find(next_distribution_node_id);
-            std::vector<double> next_state = current_distribution_node->second.next_state_distribution.sample();
-            DistributionStateEdge next_distribution_state_edge;
-            next_distribution_state_edge.distribution_node_id = next_distribution_node_id;
-            int next_state_node_id = ++this->max_state_node_id_;
-            next_distribution_state_edge.state_node_id = next_state_node_id;
-            next_distribution_state_edge.density = current_distribution_node->second.next_state_distribution.density(next_state);
-            StateNode next_state_node;
-            next_state_node.node_id = next_state_node_id;
-            next_state_node.state = next_state;
-            next_state_node.next_actuation_distribution = this->policy_fn_(next_state);
-            next_state_node.direct_value = this->value_fn_(next_state);
-            next_state_node.value = next_state_node.direct_value;
-            next_state_node.visits = 0;
-            next_state_node.depth = 0;
-            node_id_to_state_node_.emplace(next_state_node_id, next_state_node);
-            current_distribution_node->second.next_state_nodes.emplace(next_state_node_id, next_distribution_state_edge);
-            current_state_node_id = next_state_node_id;
+            // Create new nodes or refine existing nodes
+            StateDistributionEdge state_distribution_edge = create_or_explore_from_state_node(current_state_node_id);
+            DistributionStateEdge distribution_state_edge = create_or_explore_from_distribution_node(state_distribution_edge.distribution_node_id);
+
+            current_state_node_id = distribution_state_edge.state_node_id;
+
             // Record visited nodes so their value can be updated later.
-            visited_distribution_nodes.push_back(next_distribution_node_id);
-            visited_state_nodes.push_back(next_state_node_id);
+            visited_distribution_nodes.push_back(state_distribution_edge.distribution_node_id);
+            visited_state_nodes.push_back(distribution_state_edge.state_node_id);
         }
         // Update value for all visited nodes.
         for(int depth = this->depth_ - 1; depth >= 0; depth--) {

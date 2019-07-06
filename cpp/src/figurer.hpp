@@ -68,6 +68,8 @@ namespace figurer {
         void figure_once();
         void refresh_state_node(int state_node_id);
         void refresh_distribution_node(int distribution_node_id);
+        StateDistributionEdge create_or_explore_from_state_node(int state_node_id);
+        DistributionStateEdge create_or_explore_from_distribution_node(int distribution_node_id);
         std::unordered_map<int,StateNode> node_id_to_state_node_;
         int initial_state_node_id_;
         int max_state_node_id_;
