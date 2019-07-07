@@ -9,11 +9,12 @@
 namespace figurer {
 
     Context::Context() : value_fn_{nullptr}, policy_fn_{nullptr}, predict_fn_{nullptr},
-        state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1}, max_state_node_id_{0},
+        state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1},
+        max_state_node_id_{0}, max_distribution_node_id_{0}, depth_{-1},
         rootSpread_{-1}, maxValueSoFar_{std::numeric_limits<double>::min() / 2.0},
         minValueSoFar_{std::numeric_limits<double>::max() / 2.0} {}
 
-    Context::~Context() {}
+    Context::~Context() = default;
 
     void Context::set_state_size(int state_size) { state_size_ = state_size; }
 
@@ -22,24 +23,24 @@ namespace figurer {
     void Context::set_depth(int depth) { depth_ = depth; }
 
     void Context::set_initial_state(std::vector<double> initial_state) {
-        initial_state_ = initial_state;
+        initial_state_ = move(initial_state);
     }
 
     void Context::set_value_fn(std::function<double(std::vector<double>)> value_fn) {
-        value_fn_ = value_fn;
+        value_fn_ = move(value_fn);
     }
 
     void Context::set_policy_fn(std::function<Distribution(std::vector<double>)> policy_fn) {
-        policy_fn_ = policy_fn;
+        policy_fn_ = move(policy_fn);
     }
 
     void Context::set_predict_fn(std::function<Distribution(std::vector<double>,std::vector<double>)> predict_fn) {
-        predict_fn_ = predict_fn;
+        predict_fn_ = move(predict_fn);
     }
 
     void Context::set_predict_inverse_fn(std::function<std::vector<double>(std::vector<double>,std::vector<double>)>
             predict_inverse_fn) {
-        predict_inverse_fn_ = predict_inverse_fn;
+        predict_inverse_fn_ = move(predict_inverse_fn);
     }
 
     void Context::figure_seconds(double seconds) {
@@ -67,7 +68,7 @@ namespace figurer {
     }
 
     Plan Context::sample_plan(int depth) {
-        this->ensure_consistent_state();
+        ensure_consistent_state();
         Plan plan;
         int state_node_id = initial_state_node_id_;
         plan.states.push_back(initial_state_);
@@ -76,18 +77,18 @@ namespace figurer {
             auto state_node = node_id_to_state_node_.at(state_node_id);
             double max_value = 0.0;
             int next_dist_id = -1;
-            for(auto edge : state_node.next_distribution_nodes) {
-                auto next_node = node_id_to_distribution_node_.find(edge.second.distribution_node_id);
-                if(next_dist_id < 0 || next_node->second.value > max_value) {
-                    max_value = next_node->second.value;
-                    next_dist_id = next_node->second.node_id;
+            for(const auto& edge : state_node.next_distribution_nodes) {
+                auto& next_node = node_id_to_distribution_node_.at(edge.second.distribution_node_id);
+                if(next_dist_id < 0 || next_node.value > max_value) {
+                    max_value = next_node.value;
+                    next_dist_id = next_node.node_id;
                 }
             }
             if(next_dist_id < 0) {
                 return plan;
             }
-            std::vector<double> actuation = state_node.next_distribution_nodes.find(next_dist_id)->second.actuation;
-            auto dist_node = node_id_to_distribution_node_.at(next_dist_id);
+            std::vector<double>& actuation = state_node.next_distribution_nodes.at(next_dist_id).actuation;
+            auto& dist_node = node_id_to_distribution_node_.at(next_dist_id);
 
             // Select next state randomly because this step represents uncontrollable randomness in the world.
             if(dist_node.next_state_nodes.empty()) {
@@ -108,7 +109,7 @@ namespace figurer {
 
     void Context::ensure_consistent_state() {
         // initial state present
-        if(this->initial_state_.size() == 0) {
+        if(this->initial_state_.empty()) {
             throw std::invalid_argument("Initial state is empty");
         }
         if(this->state_size_ > 0 && this->initial_state_.size() != this->state_size_) {
@@ -135,7 +136,7 @@ namespace figurer {
         }
         Distribution initial_policy = this->policy_fn_(this->initial_state_);
         std::vector<double> example_actuation = initial_policy.sample();
-        if(example_actuation.size() == 0) {
+        if(example_actuation.empty()) {
             throw std::invalid_argument("policy_fn yields empty actuation");
         }
         if(this->actuation_size_ > 0 && example_actuation.size() != this->actuation_size_) {
@@ -144,7 +145,7 @@ namespace figurer {
         }
         Distribution next_state_distribution = this->predict_fn_(this->initial_state_, example_actuation);
         std::vector<double> example_next_state = next_state_distribution.sample();
-        if(example_next_state.size() == 0) {
+        if(example_next_state.empty()) {
             throw std::invalid_argument("predict_fn yields empty state");
         }
         if(this->state_size_ > 0 && example_next_state.size() != this->state_size_) {
@@ -153,7 +154,7 @@ namespace figurer {
         }
         // initial state node exists and matches initial state (otherwise fix by creating initial node)
         if(initial_state_node_id_ < 0 || node_id_to_state_node_[initial_state_node_id_].state != initial_state_) {
-            StateNode initial_node;
+            StateNode initial_node{};
             initial_node.node_id = ++max_state_node_id_;
             initial_node.state = initial_state_;
             initial_node.direct_value = initial_value;
@@ -174,7 +175,7 @@ namespace figurer {
     }
 
     void Context::refresh_state_node(int state_node_id) {
-        auto this_node = node_id_to_state_node_.at(state_node_id);
+        auto& this_node = node_id_to_state_node_.at(state_node_id);
         double max_value = 0.0;
         double min_value_plus_error = 0.0;
         double max_value_plus_error = 0.0;
@@ -185,13 +186,13 @@ namespace figurer {
         double max_value_minus_error = 0.0;
         int max_value_depth = 0;
         int total_paths = 0;
-        for(auto edge : this_node.next_distribution_nodes) {
-            auto next_node = node_id_to_distribution_node_.find(edge.second.distribution_node_id);
-            if(total_paths == 0 || next_node->second.value > max_value) {
-                max_value = next_node->second.value;
-                max_value_depth = next_node->second.depth;
+        for(auto& edge : this_node.next_distribution_nodes) {
+            auto& next_node = node_id_to_distribution_node_.at(edge.second.distribution_node_id);
+            if(total_paths == 0 || next_node.value > max_value) {
+                max_value = next_node.value;
+                max_value_depth = next_node.depth;
             }
-            double value_plus_error = next_node->second.value + next_node->second.total_error;
+            double value_plus_error = next_node.value + next_node.total_error;
             if(max_value_plus_error_id < 0 || value_plus_error < min_value_plus_error) {
                 min_value_plus_error = value_plus_error;
             }
@@ -199,15 +200,15 @@ namespace figurer {
                 second_max_value_plus_error = max_value_plus_error;
                 second_max_value_plus_error_id = max_value_plus_error_id;
                 max_value_plus_error = value_plus_error;
-                max_value_plus_error_id = next_node->second.node_id;
-            } else if(second_max_value_plus_error_id < 0 || next_node->second.value > max_value) {
+                max_value_plus_error_id = next_node.node_id;
+            } else if(second_max_value_plus_error_id < 0 || next_node.value > max_value) {
                 second_max_value_plus_error = value_plus_error;
-                second_max_value_plus_error_id = next_node->second.node_id;
+                second_max_value_plus_error_id = next_node.node_id;
             }
-            if(total_paths == 0 || next_node->second.value < min_value) {
-                min_value = next_node->second.value;
+            if(total_paths == 0 || next_node.value < min_value) {
+                min_value = next_node.value;
             }
-            double value_minus_error = next_node->second.value - next_node->second.total_error;
+            double value_minus_error = next_node.value - next_node.total_error;
             if(total_paths == 0 || value_minus_error > max_value_minus_error) {
                 max_value_minus_error = value_minus_error;
             }
@@ -233,44 +234,44 @@ namespace figurer {
             double final_value = (final_value_min + final_value_max) * 0.5;
             double total_error = final_value - final_value_min;
             // Record stats in node.
-            node_id_to_state_node_.at(state_node_id).value = final_value;
-            node_id_to_state_node_.at(state_node_id).depth = this_depth;
-            node_id_to_state_node_.at(state_node_id).child_error = child_error;
-            node_id_to_state_node_.at(state_node_id).sparsity_error = sparsity_error;
-            node_id_to_state_node_.at(state_node_id).total_error = total_error;
+            this_node.value = final_value;
+            this_node.depth = this_depth;
+            this_node.child_error = child_error;
+            this_node.sparsity_error = sparsity_error;
+            this_node.total_error = total_error;
             if(total_paths > 2 && state_node_id == initial_state_node_id_) {
                 rootSpread_ = max_value - min_value;
             }
         } else {
-            node_id_to_state_node_.at(state_node_id).value = this_node.direct_value;
-            node_id_to_state_node_.at(state_node_id).depth = 0;
-            node_id_to_state_node_.at(state_node_id).child_error = 0;
-            node_id_to_state_node_.at(state_node_id).sparsity_error = 0;
-            node_id_to_state_node_.at(state_node_id).total_error = 0;
+            this_node.value = this_node.direct_value;
+            this_node.depth = 0;
+            this_node.child_error = 0;
+            this_node.sparsity_error = 0;
+            this_node.total_error = 0;
         }
     }
 
     void Context::refresh_distribution_node(int distribution_node_id) {
-        auto this_node = node_id_to_distribution_node_.at(distribution_node_id);
+        auto& this_node = node_id_to_distribution_node_.at(distribution_node_id);
         double total_value = 0.0;
         double min_child_value = 0.0;
         double max_child_value = 0.0;
         double total_child_error_squared = 0.0;
         int max_depth = 0;
         int total_paths = 0;
-        for(auto edge : this_node.next_state_nodes) {
-            auto next_node = node_id_to_state_node_.find(edge.second.state_node_id);
-            double child_value = next_node->second.value;
+        for(auto& edge : this_node.next_state_nodes) {
+            auto& next_node = node_id_to_state_node_.at(edge.second.state_node_id);
+            double child_value = next_node.value;
             total_value += child_value;
-            total_child_error_squared += pow(next_node->second.total_error, 2.0);
+            total_child_error_squared += pow(next_node.total_error, 2.0);
             if(total_paths == 0 || child_value < min_child_value) {
                 min_child_value = child_value;
             }
             if(total_paths == 0 || child_value > max_child_value) {
                 max_child_value = child_value;
             }
-            if(next_node->second.depth > max_depth) {
-                max_depth = next_node->second.depth;
+            if(next_node.depth > max_depth) {
+                max_depth = next_node.depth;
             }
             total_paths++;
         }
@@ -281,54 +282,53 @@ namespace figurer {
                 sparsity_error = default_sparsity_error();
             }
             double total_error = sqrt(pow(child_error, 2.0) + pow(sparsity_error, 2.0));
-            node_id_to_distribution_node_.at(distribution_node_id).value = total_value / total_paths;
-            node_id_to_distribution_node_.at(distribution_node_id).depth = max_depth;
-            node_id_to_distribution_node_.at(distribution_node_id).child_error = child_error;
-            node_id_to_distribution_node_.at(distribution_node_id).sparsity_error = sparsity_error;
-            node_id_to_distribution_node_.at(distribution_node_id).total_error = total_error;
+            this_node.value = total_value / total_paths;
+            this_node.depth = max_depth;
+            this_node.child_error = child_error;
+            this_node.sparsity_error = sparsity_error;
+            this_node.total_error = total_error;
         } else {
             double sparsity_error = default_sparsity_error();
-            node_id_to_distribution_node_.at(distribution_node_id).value = 0;
-            node_id_to_distribution_node_.at(distribution_node_id).depth = 0;
-            node_id_to_distribution_node_.at(distribution_node_id).child_error = 0;
-            node_id_to_distribution_node_.at(distribution_node_id).sparsity_error = sparsity_error;
-            node_id_to_distribution_node_.at(distribution_node_id).total_error = sparsity_error;
+            this_node.value = 0;
+            this_node.depth = 0;
+            this_node.child_error = 0;
+            this_node.sparsity_error = sparsity_error;
+            this_node.total_error = sparsity_error;
         }
     }
 
     StateDistributionEdge Context::create_or_explore_from_state_node(int state_node_id) {
-        auto state_node = node_id_to_state_node_.find(state_node_id);
+        auto& state_node = node_id_to_state_node_.at(state_node_id);
         // Should decide to improve stats on old path or start new path. For now always start new path.
         // Sample next actuation and resulting state distribution.
-        std::vector<double> actuation = state_node->second.next_actuation_distribution.sample();
-        Distribution next_state_distribution = this->predict_fn_(state_node->second.state, actuation);
+        std::vector<double> actuation = state_node.next_actuation_distribution.sample();
+        Distribution next_state_distribution = this->predict_fn_(state_node.state, actuation);
         // Create node and edge for new distribution node.
         int next_distribution_node_id = ++this->max_distribution_node_id_;
-        StateDistributionEdge next_state_distribution_edge;
+        StateDistributionEdge next_state_distribution_edge{};
         next_state_distribution_edge.state_node_id = state_node_id;
         next_state_distribution_edge.distribution_node_id = next_distribution_node_id;
         next_state_distribution_edge.actuation = actuation;
-        DistributionNode next_distribution_node;
+        DistributionNode next_distribution_node{};
         next_distribution_node.node_id = next_distribution_node_id;
         next_distribution_node.next_state_distribution = next_state_distribution;
-        next_distribution_node.value = state_node->second.value;
+        next_distribution_node.value = state_node.value;
         next_distribution_node.depth = 0;
         node_id_to_distribution_node_.emplace(next_distribution_node_id, next_distribution_node);
-        state_node->second.next_distribution_nodes.emplace(next_distribution_node.node_id,
-                                                                   next_state_distribution_edge);
+        state_node.next_distribution_nodes.emplace(next_distribution_node.node_id, next_state_distribution_edge);
         return next_state_distribution_edge;
     }
 
     DistributionStateEdge Context::create_or_explore_from_distribution_node(int distribution_node_id) {
         // Sample state distribution to determine next state, then create next state node.
-        auto distribution_node = node_id_to_distribution_node_.find(distribution_node_id);
-        std::vector<double> state = distribution_node->second.next_state_distribution.sample();
-        DistributionStateEdge distribution_state_edge;
+        auto& distribution_node = node_id_to_distribution_node_.at(distribution_node_id);
+        std::vector<double> state = distribution_node.next_state_distribution.sample();
+        DistributionStateEdge distribution_state_edge{};
         distribution_state_edge.distribution_node_id = distribution_node_id;
         int state_node_id = ++this->max_state_node_id_;
         distribution_state_edge.state_node_id = state_node_id;
-        distribution_state_edge.density = distribution_node->second.next_state_distribution.density(state);
-        StateNode state_node;
+        distribution_state_edge.density = distribution_node.next_state_distribution.density(state);
+        StateNode state_node{};
         state_node.node_id = state_node_id;
         state_node.state = state;
         state_node.next_actuation_distribution = this->policy_fn_(state);
@@ -336,7 +336,7 @@ namespace figurer {
         state_node.value = state_node.direct_value;
         state_node.depth = 0;
         node_id_to_state_node_.emplace(state_node_id, state_node);
-        distribution_node->second.next_state_nodes.emplace(state_node_id, distribution_state_edge);
+        distribution_node.next_state_nodes.emplace(state_node_id, distribution_state_edge);
         if(state_node.direct_value > maxValueSoFar_) {
             maxValueSoFar_ = state_node.direct_value;
         }
