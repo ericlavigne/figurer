@@ -222,17 +222,16 @@ namespace figurer {
             double child_value_max2 = second_max_value_plus_error_id < 0 ? max_value_plus_error : second_max_value_plus_error;
             double child_value_max_floor = std::max(child_value_min, child_value_max2);
             double child_value_max = child_value_max_floor
-                    + 0.1 * (child_value_max1 - child_value_max_floor)
-                    + sparsity_error * 2;
+                    + 0.1 * (child_value_max1 - child_value_max_floor);
+            double child_error = child_value_max - child_value_min;
             // Calculate value error bars including direct value.
             int this_depth = max_value_depth + 1;
-            double final_value_min = (this_node.direct_value + this_depth * child_value_min)
+            double final_value_min = (this_node.direct_value + this_depth * (child_value_min - sparsity_error))
                                      / (this_depth + 1);
-            double final_value_max = (this_node.direct_value + this_depth * child_value_max)
+            double final_value_max = (this_node.direct_value + this_depth * (child_value_max + sparsity_error))
                                      / (this_depth + 1);
             double final_value = (final_value_min + final_value_max) * 0.5;
             double total_error = final_value - final_value_min;
-            double child_error = std::max(0.0, total_error - sparsity_error);
             // Record stats in node.
             node_id_to_state_node_.at(state_node_id).value = final_value;
             node_id_to_state_node_.at(state_node_id).depth = this_depth;
@@ -242,6 +241,12 @@ namespace figurer {
             if(total_paths > 2 && state_node_id == initial_state_node_id_) {
                 rootSpread_ = max_value - min_value;
             }
+        } else {
+            node_id_to_state_node_.at(state_node_id).value = this_node.direct_value;
+            node_id_to_state_node_.at(state_node_id).depth = 0;
+            node_id_to_state_node_.at(state_node_id).child_error = 0;
+            node_id_to_state_node_.at(state_node_id).sparsity_error = 0;
+            node_id_to_state_node_.at(state_node_id).total_error = 0;
         }
     }
 
