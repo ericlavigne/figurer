@@ -29,9 +29,11 @@ namespace figurer {
         int node_id;
         std::vector<double> state;
         Distribution next_actuation_distribution;
-        int visits;
         double direct_value;
         double value;
+        double child_error;
+        double sparsity_error;
+        double total_error;
         int depth;
         std::unordered_map<int,StateDistributionEdge> next_distribution_nodes;
     };
@@ -40,6 +42,9 @@ namespace figurer {
         int node_id;
         Distribution next_state_distribution;
         double value;
+        double child_error;
+        double sparsity_error;
+        double total_error;
         int depth;
         std::unordered_map<int,DistributionStateEdge> next_state_nodes;
     };
@@ -52,6 +57,7 @@ namespace figurer {
         // Depth of lookahead
         int depth_;
         std::vector<double> initial_state_;
+        double rootSpread_, maxValueSoFar_, minValueSoFar_; // These three are used to estimate error in some edge cases.
         // value: (state)->value
         std::function<double(std::vector<double>)> value_fn_;
         // policy: (state)->actuation dist
@@ -66,6 +72,7 @@ namespace figurer {
         void ensure_consistent_state();
         // figure_once takes a small step toward solving the optimization problem.
         void figure_once();
+        double default_sparsity_error();
         void refresh_state_node(int state_node_id);
         void refresh_distribution_node(int distribution_node_id);
         StateDistributionEdge create_or_explore_from_state_node(int state_node_id);

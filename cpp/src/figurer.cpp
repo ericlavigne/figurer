@@ -9,7 +9,9 @@
 namespace figurer {
 
     Context::Context() : value_fn_{nullptr}, policy_fn_{nullptr}, predict_fn_{nullptr},
-        state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1}, max_state_node_id_{0} {}
+        state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1}, max_state_node_id_{0},
+        rootSpread_{-1}, maxValueSoFar_{std::numeric_limits<double>::min() / 2.0},
+        minValueSoFar_{std::numeric_limits<double>::max() / 2.0} {}
 
     Context::~Context() {}
 
@@ -125,6 +127,12 @@ namespace figurer {
         }
         // callback dimensions consistent (call each once)
         double initial_value = this->value_fn_(this->initial_state_);
+        if(initial_value > maxValueSoFar_) {
+            maxValueSoFar_ = initial_value;
+        }
+        if(initial_value < minValueSoFar_) {
+            minValueSoFar_ = initial_value;
+        }
         Distribution initial_policy = this->policy_fn_(this->initial_state_);
         std::vector<double> example_actuation = initial_policy.sample();
         if(example_actuation.size() == 0) {
@@ -151,49 +159,135 @@ namespace figurer {
             initial_node.direct_value = initial_value;
             initial_node.value = initial_value;
             initial_node.next_actuation_distribution = initial_policy;
-            initial_node.visits = 0;
             node_id_to_state_node_[initial_node.node_id] = initial_node;
             initial_state_node_id_ = initial_node.node_id;
         }
     }
 
+    double Context::default_sparsity_error() {
+        if(rootSpread_ > 0) {
+            return rootSpread_;
+        } else if(maxValueSoFar_ > minValueSoFar_ + 1000) {
+            return maxValueSoFar_ - minValueSoFar_;
+        }
+        return 1000;
+    }
+
     void Context::refresh_state_node(int state_node_id) {
         auto this_node = node_id_to_state_node_.at(state_node_id);
         double max_value = 0.0;
+        double min_value_plus_error = 0.0;
+        double max_value_plus_error = 0.0;
+        int max_value_plus_error_id = -1;
+        double second_max_value_plus_error = 0.0;
+        int second_max_value_plus_error_id = -1;
+        double min_value = 0.0;
+        double max_value_minus_error = 0.0;
         int max_value_depth = 0;
         int total_paths = 0;
         for(auto edge : this_node.next_distribution_nodes) {
             auto next_node = node_id_to_distribution_node_.find(edge.second.distribution_node_id);
-            if(total_paths < 1 || next_node->second.value > max_value) {
+            if(total_paths == 0 || next_node->second.value > max_value) {
                 max_value = next_node->second.value;
                 max_value_depth = next_node->second.depth;
+            }
+            double value_plus_error = next_node->second.value + next_node->second.total_error;
+            if(max_value_plus_error_id < 0 || value_plus_error < min_value_plus_error) {
+                min_value_plus_error = value_plus_error;
+            }
+            if(max_value_plus_error_id < 0 || value_plus_error > max_value_plus_error) {
+                second_max_value_plus_error = max_value_plus_error;
+                second_max_value_plus_error_id = max_value_plus_error_id;
+                max_value_plus_error = value_plus_error;
+                max_value_plus_error_id = next_node->second.node_id;
+            } else if(second_max_value_plus_error_id < 0 || next_node->second.value > max_value) {
+                second_max_value_plus_error = value_plus_error;
+                second_max_value_plus_error_id = next_node->second.node_id;
+            }
+            if(total_paths == 0 || next_node->second.value < min_value) {
+                min_value = next_node->second.value;
+            }
+            double value_minus_error = next_node->second.value - next_node->second.total_error;
+            if(total_paths == 0 || value_minus_error > max_value_minus_error) {
+                max_value_minus_error = value_minus_error;
             }
             total_paths++;
         }
         if(total_paths > 0) {
+            // Calculate value error bars based on children only (will add direct value later).
+            double sparsity_error = total_paths < 2 ? default_sparsity_error()
+                    : std::max(0.01, (max_value - min_value_plus_error)) / total_paths;
+            double child_value_min = max_value_minus_error;
+            double child_value_max1 = max_value_plus_error;
+            double child_value_max2 = second_max_value_plus_error_id < 0 ? max_value_plus_error : second_max_value_plus_error;
+            double child_value_max_floor = std::max(child_value_min, child_value_max2);
+            double child_value_max = child_value_max_floor
+                    + 0.1 * (child_value_max1 - child_value_max_floor)
+                    + sparsity_error * 2;
+            // Calculate value error bars including direct value.
             int this_depth = max_value_depth + 1;
-            node_id_to_state_node_.at(state_node_id).value = (this_node.direct_value + this_depth * max_value)
-                                                             / (this_depth + 1);
+            double final_value_min = (this_node.direct_value + this_depth * child_value_min)
+                                     / (this_depth + 1);
+            double final_value_max = (this_node.direct_value + this_depth * child_value_max)
+                                     / (this_depth + 1);
+            double final_value = (final_value_min + final_value_max) * 0.5;
+            double total_error = final_value - final_value_min;
+            double child_error = std::max(0.0, total_error - sparsity_error);
+            // Record stats in node.
+            node_id_to_state_node_.at(state_node_id).value = final_value;
             node_id_to_state_node_.at(state_node_id).depth = this_depth;
+            node_id_to_state_node_.at(state_node_id).child_error = child_error;
+            node_id_to_state_node_.at(state_node_id).sparsity_error = sparsity_error;
+            node_id_to_state_node_.at(state_node_id).total_error = total_error;
+            if(total_paths > 2 && state_node_id == initial_state_node_id_) {
+                rootSpread_ = max_value - min_value;
+            }
         }
     }
 
     void Context::refresh_distribution_node(int distribution_node_id) {
         auto this_node = node_id_to_distribution_node_.at(distribution_node_id);
         double total_value = 0.0;
+        double min_child_value = 0.0;
+        double max_child_value = 0.0;
+        double total_child_error_squared = 0.0;
         int max_depth = 0;
         int total_paths = 0;
         for(auto edge : this_node.next_state_nodes) {
             auto next_node = node_id_to_state_node_.find(edge.second.state_node_id);
-            total_value += next_node->second.value;
+            double child_value = next_node->second.value;
+            total_value += child_value;
+            total_child_error_squared += pow(next_node->second.total_error, 2.0);
+            if(total_paths == 0 || child_value < min_child_value) {
+                min_child_value = child_value;
+            }
+            if(total_paths == 0 || child_value > max_child_value) {
+                max_child_value = child_value;
+            }
             if(next_node->second.depth > max_depth) {
                 max_depth = next_node->second.depth;
             }
             total_paths++;
         }
         if(total_paths > 0) {
+            double child_error = sqrt(total_child_error_squared);
+            double sparsity_error = (max_child_value - min_child_value + child_error) / std::max(total_paths, 1);
+            if(total_paths < 2) {
+                sparsity_error = default_sparsity_error();
+            }
+            double total_error = sqrt(pow(child_error, 2.0) + pow(sparsity_error, 2.0));
             node_id_to_distribution_node_.at(distribution_node_id).value = total_value / total_paths;
             node_id_to_distribution_node_.at(distribution_node_id).depth = max_depth;
+            node_id_to_distribution_node_.at(distribution_node_id).child_error = child_error;
+            node_id_to_distribution_node_.at(distribution_node_id).sparsity_error = sparsity_error;
+            node_id_to_distribution_node_.at(distribution_node_id).total_error = total_error;
+        } else {
+            double sparsity_error = default_sparsity_error();
+            node_id_to_distribution_node_.at(distribution_node_id).value = 0;
+            node_id_to_distribution_node_.at(distribution_node_id).depth = 0;
+            node_id_to_distribution_node_.at(distribution_node_id).child_error = 0;
+            node_id_to_distribution_node_.at(distribution_node_id).sparsity_error = sparsity_error;
+            node_id_to_distribution_node_.at(distribution_node_id).total_error = sparsity_error;
         }
     }
 
@@ -235,10 +329,15 @@ namespace figurer {
         state_node.next_actuation_distribution = this->policy_fn_(state);
         state_node.direct_value = this->value_fn_(state);
         state_node.value = state_node.direct_value;
-        state_node.visits = 0;
         state_node.depth = 0;
         node_id_to_state_node_.emplace(state_node_id, state_node);
         distribution_node->second.next_state_nodes.emplace(state_node_id, distribution_state_edge);
+        if(state_node.direct_value > maxValueSoFar_) {
+            maxValueSoFar_ = state_node.direct_value;
+        }
+        if(state_node.direct_value < minValueSoFar_) {
+            minValueSoFar_ = state_node.direct_value;
+        }
         return distribution_state_edge;
     }
 
