@@ -18,8 +18,8 @@ namespace figurer_robot2d_example {
 
     // The value returned by value_fn should be higher when state is closer to the goal.
     double value_fn(std::vector<double> state) {
-        double origin_to_goal = abs(origin[0] - goal[0]) + abs(origin[1] - goal[1]);
-        double state_to_goal = abs(state[0] - goal[0]) + abs(state[1] - goal[1]);
+        double origin_to_goal = fabs(origin[0] - goal[0]) + fabs(origin[1] - goal[1]);
+        double state_to_goal = fabs(state[0] - goal[0]) + fabs(state[1] - goal[1]);
         return origin_to_goal - state_to_goal;
     }
 
@@ -43,8 +43,8 @@ namespace figurer_robot2d_example {
     figurer::Distribution predict_fn(std::vector<double> state, std::vector<double> actuation) {
         double new_x = state[0] + std::min(1.0, std::max(-1.0, actuation[0]));
         double new_y = state[1] + std::min(1.0, std::max(-1.0, actuation[1]));
-        double uncertainty_x = std::max(0.01, abs(actuation[0] * 0.1));
-        double uncertainty_y = std::max(0.01, abs(actuation[1] * 0.1));
+        double uncertainty_x = std::max(0.01, fabs(actuation[0] * 0.1));
+        double uncertainty_y = std::max(0.01, fabs(actuation[1] * 0.1));
         return figurer::uniform_distribution({new_x - uncertainty_x, new_x + uncertainty_x,
                                               new_y - uncertainty_y, new_y + uncertainty_y});
     }
