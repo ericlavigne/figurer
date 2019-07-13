@@ -11,7 +11,8 @@ namespace figurer {
     Context::Context() : value_fn_{nullptr}, policy_fn_{nullptr}, predict_fn_{nullptr},
         state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1},
         max_state_node_id_{0}, max_distribution_node_id_{0}, depth_{-1},
-        rootSpread_{-1}, maxValueSoFar_{std::numeric_limits<double>::min() / 2.0},
+        rootSpread_{-1}, avg_dist_sparsity_{-1},
+        maxValueSoFar_{std::numeric_limits<double>::min() / 2.0},
         minValueSoFar_{std::numeric_limits<double>::max() / 2.0} {}
 
     Context::~Context() = default;
@@ -185,8 +186,19 @@ namespace figurer {
         }
     }
 
-    double Context::default_sparsity_error() {
+    double Context::default_sparsity_error_for_state_node() {
         if(rootSpread_ > 0) {
+            return rootSpread_;
+        } else if(maxValueSoFar_ > minValueSoFar_ + 1) {
+            return maxValueSoFar_ - minValueSoFar_;
+        }
+        return 1000;
+    }
+
+    double Context::default_sparsity_error_for_distribution_node() {
+        if(avg_dist_sparsity_ > 0) {
+            return avg_dist_sparsity_;
+        } else if(rootSpread_ > 0) {
             return rootSpread_;
         } else if(maxValueSoFar_ > minValueSoFar_ + 1) {
             return maxValueSoFar_ - minValueSoFar_;
@@ -237,7 +249,7 @@ namespace figurer {
         if(total_paths > 0) {
             // Calculate value error bars based on children only (will add direct value later).
             int this_depth = max_value_depth + 1;
-            double sparsity_error = total_paths < 2 ? default_sparsity_error() * this_depth / depth_
+            double sparsity_error = total_paths < 2 ? default_sparsity_error_for_state_node() * this_depth / depth_
                     : std::max(0.01, (max_value - min_value)) / total_paths;
             double child_value_min = max_value_minus_error;
             double child_value_max1 = max_value_plus_error;
@@ -299,7 +311,7 @@ namespace figurer {
             double child_error = sqrt(total_child_error_squared) / std::max(total_paths, 1);
             double sparsity_error = (max_child_value - min_child_value + child_error) / std::max(total_paths, 1);
             if(total_paths < 2) {
-                sparsity_error = default_sparsity_error();
+                sparsity_error = default_sparsity_error_for_distribution_node();
             }
             double total_error = sqrt(pow(child_error, 2.0) + pow(sparsity_error, 2.0));
             this_node.value = total_value / total_paths;
@@ -307,8 +319,16 @@ namespace figurer {
             this_node.child_error = child_error;
             this_node.sparsity_error = sparsity_error;
             this_node.total_error = total_error;
+            if(total_paths > 1) {
+                double low_sparsity_estimate = std::max(0.01, (total_error - child_error) * total_paths);
+                if(avg_dist_sparsity_ < 0) {
+                    avg_dist_sparsity_ = low_sparsity_estimate;
+                } else {
+                    avg_dist_sparsity_ = 0.95 * avg_dist_sparsity_ + 0.05 * low_sparsity_estimate;
+                }
+            }
         } else {
-            double sparsity_error = default_sparsity_error();
+            double sparsity_error = default_sparsity_error_for_distribution_node();
             this_node.value = 0;
             this_node.depth = 0;
             this_node.child_error = 0;
@@ -391,14 +411,17 @@ namespace figurer {
     }
 
     DistributionStateEdge Context::create_or_explore_from_distribution_node(int distribution_node_id) {
-        // Sample state distribution to determine next state, then create next state node.
         auto& distribution_node = node_id_to_distribution_node_.at(distribution_node_id);
-        // Force some variety so that sparcity error can be estimated accurately.
-        if(distribution_node.next_state_nodes.size() < 2) {
+        // If no children then creating is the only option.
+        if(distribution_node.next_state_nodes.empty()) {
             return create_from_distribution_node(distribution_node_id);
         }
+        // If less than 2 children, sparsity error was set by default.
+        // Better to use current default that is based on more data.
+        double sparsity_error = distribution_node.next_state_nodes.size() < 2 ?
+                default_sparsity_error_for_distribution_node() : distribution_node.sparsity_error;
         // If sparcity error dominates then address that problem with new node.
-        if(distribution_node.sparsity_error > distribution_node.child_error) {
+        if(sparsity_error > distribution_node.child_error) {
             return create_from_distribution_node(distribution_node_id);
         }
         // Otherwise refine the most promising child node.

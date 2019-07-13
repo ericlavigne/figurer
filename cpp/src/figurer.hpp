@@ -57,7 +57,8 @@ namespace figurer {
         // Depth of lookahead
         int depth_;
         std::vector<double> initial_state_;
-        double rootSpread_, maxValueSoFar_, minValueSoFar_; // These three are used to estimate error in some edge cases.
+        // These are used to estimate error in some edge cases.
+        double rootSpread_, maxValueSoFar_, minValueSoFar_, avg_dist_sparsity_;
         // value: (state)->value
         std::function<double(std::vector<double>)> value_fn_;
         // policy: (state)->actuation dist
@@ -72,7 +73,8 @@ namespace figurer {
         void ensure_consistent_state();
         // figure_once takes a small step toward solving the optimization problem.
         void figure_once();
-        double default_sparsity_error();
+        double default_sparsity_error_for_state_node();
+        double default_sparsity_error_for_distribution_node();
         void refresh_state_node(int state_node_id);
         void refresh_distribution_node(int distribution_node_id);
         StateDistributionEdge create_from_state_node(int state_node_id);
