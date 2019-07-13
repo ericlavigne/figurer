@@ -75,13 +75,17 @@ namespace figurer {
         double default_sparsity_error();
         void refresh_state_node(int state_node_id);
         void refresh_distribution_node(int distribution_node_id);
+        StateDistributionEdge create_from_state_node(int state_node_id);
         StateDistributionEdge create_or_explore_from_state_node(int state_node_id);
+        DistributionStateEdge create_from_distribution_node(int distribution_node_id);
         DistributionStateEdge create_or_explore_from_distribution_node(int distribution_node_id);
         std::unordered_map<int,StateNode> node_id_to_state_node_;
         int initial_state_node_id_;
         int max_state_node_id_;
         std::unordered_map<int,DistributionNode> node_id_to_distribution_node_;
         int max_distribution_node_id_;
+        void showStateDistEdge(std::ostream& os, const StateDistributionEdge& edge, int indent) const;
+        void showDistStateEdge(std::ostream& os, const DistributionStateEdge& edge, int indent) const;
     public:
         Context();
         ~Context();
@@ -98,8 +102,9 @@ namespace figurer {
         void figure_iterations(int iterations);
         Plan sample_plan();
         Plan sample_plan(int depth);
-    };
 
+        friend std::ostream& operator<<(std::ostream& os, const figurer::Context& context);
+    };
 }
 
 std::ostream& operator<<(std::ostream& os, const figurer::Plan& plan);

@@ -7,6 +7,9 @@ namespace {
         figurer::Context context = figurer_robot2d_example::robot2d_context();
         context.figure_iterations(100);
         figurer::Plan plan = context.sample_plan();
+        std::cout << plan << std::endl;
+
+        std::cout << context << std::endl;
         EXPECT_EQ(5, plan.actuations.size());
         EXPECT_EQ(6, plan.states.size());
         ASSERT_NEAR(figurer_robot2d_example::origin[0], plan.states[0][0], 0.01);
@@ -16,6 +19,5 @@ namespace {
         std::vector<double> goal = figurer_robot2d_example::goal;
         ASSERT_NEAR(last_state[0], goal[0], 1.0);
         ASSERT_NEAR(last_state[1], goal[1], 1.0);
-        std::cout << plan << std::endl;
     }
 }
