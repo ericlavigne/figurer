@@ -29,6 +29,16 @@ endif()
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src ${CMAKE_BINARY_DIR}/googletest-build)
 
+set(boostzip ${CMAKE_BINARY_DIR}/boost_1_70_0.zip)
+set(boostdir ${CMAKE_BINARY_DIR}/boost_1_70_0/)
+set(boostheader ${boostdir}/boost/geometry/index/rtree.hpp)
+if(NOT EXISTS ${boostheader})
+    file(DOWNLOAD https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.zip ${boostzip})
+    execute_process(COMMAND ${CMAKE_COMMAND} -E tar -xf ${boostzip}
+                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
+include_directories(${boostdir})
+
 set(test_sources test/figurer_distribution_test.cpp test/figurer_robot2d_test.cpp)
 add_executable(test_figurer ${test_sources} ${sources})
 target_link_libraries(test_figurer gtest_main)

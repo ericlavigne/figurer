@@ -2,6 +2,7 @@
 #define FIGURER_HPP
 
 #include "figurer_distribution.hpp"
+#include <boost/geometry/index/rtree.hpp>
 #include <functional>
 #include <unordered_map>
 #include <vector>
