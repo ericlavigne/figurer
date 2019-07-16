@@ -3,6 +3,7 @@
 
 #include "figurer_distribution.hpp"
 #include <boost/geometry/index/rtree.hpp>
+#include <flann/flann.hpp>
 #include <functional>
 #include <unordered_map>
 #include <vector>
