@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <iomanip>
+#include <algorithm>
 
 namespace figurer {
 
@@ -106,10 +107,15 @@ namespace figurer {
             if(dist_node.next_state_nodes.empty()) {
                 return plan;
             }
-            std::vector<std::pair<int,DistributionStateEdge>> sample_out;
-            std::sample(dist_node.next_state_nodes.begin(),dist_node.next_state_nodes.end(),
-                    std::back_inserter(sample_out), 1, std::mt19937{std::random_device{}()});
-            state_node_id = sample_out[0].second.state_node_id;
+
+            // Workaround because std::sample not available until C++17
+            state_node_id = (*(dist_node.next_state_nodes.begin())).second.state_node_id;
+
+            //std::vector<std::pair<int,DistributionStateEdge>> sample_out;
+            //std::sample(dist_node.next_state_nodes.begin(),dist_node.next_state_nodes.end(),
+            //        std::back_inserter(sample_out), 1, std::mt19937{std::random_device{}()});
+            //state_node_id = sample_out[0].second.state_node_id;
+
             state_node = node_id_to_state_node_.at(state_node_id);
 
             std::cout << "sampled next state node " << state_node_id << " with state ";
