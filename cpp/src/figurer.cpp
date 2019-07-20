@@ -1,4 +1,5 @@
 #include "figurer.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <exception>
@@ -12,6 +13,7 @@ namespace figurer {
         state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1},
         max_state_node_id_{0}, max_distribution_node_id_{0}, depth_{-1},
         rootSpread_{-1}, avg_dist_sparsity_{-1},
+        state_to_node_id_{-1},
         maxValueSoFar_{std::numeric_limits<double>::min() / 2.0},
         minValueSoFar_{std::numeric_limits<double>::max() / 2.0} {}
 
@@ -183,6 +185,7 @@ namespace figurer {
             initial_node.next_actuation_distribution = initial_policy;
             node_id_to_state_node_[initial_node.node_id] = initial_node;
             initial_state_node_id_ = initial_node.node_id;
+            state_to_node_id_.add(initial_state_node_id_, initial_state_);
         }
     }
 
@@ -257,14 +260,12 @@ namespace figurer {
             double child_value_max_floor = std::max(child_value_min, child_value_max2);
             double child_value_max = child_value_max_floor
                     + 0.1 * (child_value_max1 - child_value_max_floor);
-            double child_error = child_value_max - child_value_min;
             // Calculate value error bars including direct value.
             double final_value_min = (this_node.direct_value + this_depth * child_value_min)
                                      / (this_depth + 1);
             double final_value_max = (this_node.direct_value + this_depth * child_value_max)
                                      / (this_depth + 1);
             double final_value = (final_value_min + final_value_max) * 0.5;
-            double total_error = final_value - final_value_min;
             // Record stats in node.
             this_node.value = final_value;
             this_node.depth = this_depth;
@@ -387,11 +388,25 @@ namespace figurer {
         // Sample state distribution to determine next state, then create next state node.
         auto& distribution_node = node_id_to_distribution_node_.at(distribution_node_id);
         std::vector<double> state = distribution_node.next_state_distribution.sample();
+        double sample_density = distribution_node.next_state_distribution.density(state);
         DistributionStateEdge distribution_state_edge{};
         distribution_state_edge.distribution_node_id = distribution_node_id;
+
+        auto nearby = state_to_node_id_.closest(state);
+        if(distribution_node.next_state_nodes.find(nearby.first) == distribution_node.next_state_nodes.end()) {
+            double nearby_density = distribution_node.next_state_distribution.density(nearby.second);
+            if(nearby_density > 0.1 * sample_density) {
+                distribution_state_edge.state_node_id = nearby.first;
+                distribution_state_edge.density = nearby_density;
+                distribution_node.next_state_nodes.emplace(nearby.first, distribution_state_edge);
+                std::cout << "Distribution node " << distribution_node_id << " connecting to existing state node " << nearby.first << std::endl;
+                return distribution_state_edge;
+            }
+        }
+
         int state_node_id = ++this->max_state_node_id_;
         distribution_state_edge.state_node_id = state_node_id;
-        distribution_state_edge.density = distribution_node.next_state_distribution.density(state);
+        distribution_state_edge.density = sample_density;
         StateNode state_node{};
         state_node.node_id = state_node_id;
         state_node.state = state;
@@ -401,6 +416,7 @@ namespace figurer {
         state_node.depth = 0;
         node_id_to_state_node_.emplace(state_node_id, state_node);
         distribution_node.next_state_nodes.emplace(state_node_id, distribution_state_edge);
+        state_to_node_id_.add(state_node_id, state);
         if(state_node.direct_value > maxValueSoFar_) {
             maxValueSoFar_ = state_node.direct_value;
         }
@@ -489,7 +505,7 @@ namespace figurer {
 
     void Context::showStateDistEdge(std::ostream& os, const StateDistributionEdge& edge, int indent) const {
         auto &dist_node = node_id_to_distribution_node_.at(edge.distribution_node_id);
-        for(int i = 0; i < indent; i++) {
+        for (int i = 0; i < indent; i++) {
             os << "    ";
         }
         os << "dist" << edge.distribution_node_id;
@@ -522,9 +538,14 @@ namespace figurer {
         }
         os << "  value: " << state_node.value << " +/- " << state_node.total_error
            << " (sparsity: " << state_node.sparsity_error << ")";
-        os << "\n";
-        for (auto &next_edge : state_node.next_distribution_nodes) {
-            showStateDistEdge(os, next_edge.second, indent + 1);
+
+        if (indent < depth_*2) {
+            os << "\n";
+            for (auto &next_edge : state_node.next_distribution_nodes) {
+                showStateDistEdge(os, next_edge.second, indent + 1);
+            }
+        } else {
+            os << " ...\n";
         }
     }
 }

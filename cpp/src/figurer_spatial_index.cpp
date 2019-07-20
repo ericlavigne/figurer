@@ -10,6 +10,9 @@ namespace figurer {
 
     }
     void spatial_index::add(int id, std::vector<double> position) {
+        if(dimension_ < 0) {
+            dimension_ = position.size();
+        }
         if(position.size() == dimension_) {
             data_.emplace_back(id,position);
         } else {

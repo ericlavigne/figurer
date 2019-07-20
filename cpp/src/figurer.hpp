@@ -2,6 +2,7 @@
 #define FIGURER_HPP
 
 #include "figurer_distribution.hpp"
+#include "figurer_spatial_index.hpp"
 #include <functional>
 #include <unordered_map>
 #include <vector>
@@ -59,6 +60,8 @@ namespace figurer {
         std::vector<double> initial_state_;
         // These are used to estimate error in some edge cases.
         double rootSpread_, maxValueSoFar_, minValueSoFar_, avg_dist_sparsity_;
+        // Spatial index to find nearby state nodes
+        spatial_index state_to_node_id_;
         // value: (state)->value
         std::function<double(std::vector<double>)> value_fn_;
         // policy: (state)->actuation dist
