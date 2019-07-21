@@ -30,6 +30,7 @@ namespace figurer {
         int node_id;
         std::vector<double> state;
         Distribution next_actuation_distribution;
+        spatial_index actuations_so_far;
         double direct_value;
         double value;
         double child_error;

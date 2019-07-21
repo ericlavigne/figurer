@@ -4,11 +4,10 @@
 
 namespace figurer {
 
-    spatial_index::spatial_index(int dimension)
-    : dimension_{dimension}, data_{}
-    {
+    spatial_index::spatial_index() : dimension_{-1}, data_{} {}
 
-    }
+    spatial_index::spatial_index(int dimension) : dimension_{dimension}, data_{} {}
+
     void spatial_index::add(int id, std::vector<double> position) {
         if(dimension_ < 0) {
             dimension_ = position.size();
@@ -20,6 +19,7 @@ namespace figurer {
                                         " to spatial_index of dimension " + std::to_string(dimension_));
         }
     }
+
     std::pair<int,std::vector<double>> spatial_index::closest(const std::vector<double>& position) {
         if(data_.empty()) {
             throw std::invalid_argument("Can't find closest point in empty data set");
@@ -29,20 +29,35 @@ namespace figurer {
                                         " tin spatial_index of dimension " + std::to_string(dimension_));
         }
         int closest_index = 0;
-        double closest_distance = L2_distance(position, data_[0].second);
+        double closest_distance = distance2(position, data_[0].second);
         for(int i = 1; i < data_.size(); i++) {
-            double distance = L2_distance(position, data_[i].second);
-            if(distance < closest_distance) {
-                closest_distance = distance;
+            double dist = distance2(position, data_[i].second);
+            if(dist < closest_distance) {
+                closest_distance = dist;
                 closest_index = i;
             }
         }
         return data_[closest_index];
     }
+
+    double spatial_index::closest_distance(const std::vector<double>& position) {
+        return sqrt(closest_distance2(position));
+    }
+
+    double spatial_index::closest_distance2(const std::vector<double>& position) {
+        auto found = closest(position);
+        return distance2(position, found.second);
+    }
+
     int spatial_index::size() {
         return data_.size();
     }
-    double L2_distance(const std::vector<double>& position1, const std::vector<double>& position2) {
+
+    double distance(const std::vector<double>& position1, const std::vector<double>& position2) {
+        return sqrt(distance2(position1,position2));
+    }
+
+    double distance2(const std::vector<double>& position1, const std::vector<double>& position2) {
         if(position1.size() != position2.size()) {
             throw std::invalid_argument("Can't compute L2 distance between vector of dimension " + std::to_string(position1.size()) +
                                         " and vector of dimension " + std::to_string(position2.size()));

@@ -13,7 +13,7 @@ namespace figurer {
         state_size_{-1}, actuation_size_{-1}, initial_state_node_id_{-1},
         max_state_node_id_{0}, max_distribution_node_id_{0}, depth_{-1},
         rootSpread_{-1}, avg_dist_sparsity_{-1},
-        state_to_node_id_{-1},
+        state_to_node_id_{},
         maxValueSoFar_{std::numeric_limits<double>::min() / 2.0},
         minValueSoFar_{std::numeric_limits<double>::max() / 2.0} {}
 
@@ -343,6 +343,51 @@ namespace figurer {
         // Sample next actuation and resulting state distribution.
         std::vector<double> actuation = state_node.next_actuation_distribution.sample();
         Distribution next_state_distribution = this->predict_fn_(state_node.state, actuation);
+
+        // Try to connect to nearby state instead of creating new
+        if(predict_inverse_fn_) {
+            auto next_state = next_state_distribution.sample();
+            auto nearby = state_to_node_id_.closest(next_state);
+            int nearby_state_node_id = nearby.first;
+            // Ensure nearby isn't already a child before continuing connection effort.
+            bool nearby_already_connected = false;
+            for(auto& child_dist_edge : state_node.next_distribution_nodes) {
+                auto& child_dist = node_id_to_distribution_node_.at(child_dist_edge.second.distribution_node_id);
+                for(auto& child_state_edge : child_dist.next_state_nodes) {
+                    if(nearby_state_node_id == child_state_edge.second.state_node_id) {
+                        nearby_already_connected = true;
+                    }
+                }
+            }
+            if(! nearby_already_connected) {
+                auto aim_actuation = predict_inverse_fn_(state_node.state, nearby.second);
+                Distribution aim_state_dist = predict_fn_(state_node.state, aim_actuation);
+                auto aim_state_sample = aim_state_dist.sample();
+                double old_distance2 = distance2(next_state, nearby.second);
+                double aim_distance2 = distance2(aim_state_sample, nearby.second);
+                // If aiming can't get us at least 5x closer then don't bother.
+                if(aim_distance2 < 0.04 * old_distance2) {
+                    double next_policy_density = state_node.next_actuation_distribution.density(actuation);
+                    double aim_policy_density = state_node.next_actuation_distribution.density(aim_actuation);
+                    double next_actuation_distance = 1.0;
+                    double aim_actuation_distance = 1.0;
+                    if(!state_node.next_distribution_nodes.empty()) {
+                        next_actuation_distance = state_node.actuations_so_far.closest_distance(actuation);
+                        aim_actuation_distance = state_node.actuations_so_far.closest_distance(aim_actuation);
+                    }
+                    // Aim version is allowed to be up to 5x worse in combination of policy density
+                    // and distance from other actuations.
+                    if(aim_policy_density * next_actuation_distance > 0.2 * next_policy_density * aim_actuation_distance) {
+                        // Finalize decision to aim by replacing actuation and state distribution with aim versions.
+                        actuation = aim_actuation;
+                        next_state_distribution = aim_state_dist;
+                        //std::cout << "State" << state_node_id << " created dist" << this->max_distribution_node_id_ + 1
+                        //          << " to aim at state" << nearby_state_node_id << std::endl;
+                    }
+                }
+            }
+        }
+
         // Create node and edge for new distribution node.
         int next_distribution_node_id = ++this->max_distribution_node_id_;
         StateDistributionEdge next_state_distribution_edge{};
@@ -357,6 +402,7 @@ namespace figurer {
         // Add node and edge to context and return edge.
         node_id_to_distribution_node_.emplace(next_distribution_node_id, next_distribution_node);
         state_node.next_distribution_nodes.emplace(next_distribution_node.node_id, next_state_distribution_edge);
+        state_node.actuations_so_far.add(next_distribution_node_id,actuation);
         return next_state_distribution_edge;
     }
 
@@ -392,6 +438,7 @@ namespace figurer {
         DistributionStateEdge distribution_state_edge{};
         distribution_state_edge.distribution_node_id = distribution_node_id;
 
+        // Try to connect to nearby state instead of creating new
         auto nearby = state_to_node_id_.closest(state);
         if(distribution_node.next_state_nodes.find(nearby.first) == distribution_node.next_state_nodes.end()) {
             double nearby_density = distribution_node.next_state_distribution.density(nearby.second);
@@ -399,7 +446,7 @@ namespace figurer {
                 distribution_state_edge.state_node_id = nearby.first;
                 distribution_state_edge.density = nearby_density;
                 distribution_node.next_state_nodes.emplace(nearby.first, distribution_state_edge);
-                std::cout << "Distribution node " << distribution_node_id << " connecting to existing state node " << nearby.first << std::endl;
+                //std::cout << "Distribution node " << distribution_node_id << " connecting to existing state node " << nearby.first << std::endl;
                 return distribution_state_edge;
             }
         }
